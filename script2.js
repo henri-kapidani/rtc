@@ -1,67 +1,66 @@
-const searchParams = new URLSearchParams(window.location.search);
-const btnShare = document.querySelector('.invite');
-const btnStart = document.querySelector('.start');
-const eleCode = document.querySelector('.code');
-
 const options = {
 	iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
 };
-
 const pc = new RTCPeerConnection(options);
+// pc.onicecandidate = e => console.log(e.candidate);
+pc.onicegatheringstatechange = e => {
+	if (e.target.iceGatheringState === 'complete') {
+		console.log(pc.localDescription);
+
+		if (isOfferSide) {
+			const shareUrl = window.location.origin +
+				window.location.pathname +
+				'?o=' +
+				encodeURIComponent(JSON.stringify(pc.localDescription));
+			document.body.innerHTML = `<a href="${shareUrl}" target="_blank" rel="noreferrer noopener">Open other peer tab</a><br><br><br><button>complete Connection</button><div>` + JSON.stringify(pc.localDescription) + `</div>`;
+			document.querySelector('button').addEventListener('click', e => {
+				const answer = JSON.parse(prompt('Answer: '));
+				completeConnection(answer);
+			});
+		} else {
+			document.body.innerHTML = '<div>' + JSON.stringify(pc.localDescription) + '</div>';
+		}
+	}
+}
+
 const channelData = pc.createDataChannel('channelData', {
 	negotiated: true,
 	id: 1,
 });
-
-// let channel;
 channelData.onopen = e => console.log('open');
 channelData.onmessage = e => console.log(e.data);
-
 // channelData.send('message');
 
-if (searchParams.has('o')) {
-	const offer = JSON.parse(searchParams.get('o'));
-
-	// pc.ondatachannel = e => {
-	// 	console.log('ondatachannel');
-	// 	channelData = e.channelData;
-	// 	channelData.onopen = e => console.log('open');
-	// 	channelData.onmessage = e => console.log(e.data);
-	// 	channelData.onclose = e => console.log('closed');
-	// };
-
-	pc.setRemoteDescription(offer).then(a => console.log('done'));
-
-	//create answer
-	pc.createAnswer()
-		.then(answer => pc.setLocalDescription(answer))
-		.then(answer => console.log(JSON.stringify(pc.localDescription)));
-	//send the answer to the client
+const searchParams = new URLSearchParams(window.location.search);
+const isOfferSide = !searchParams.has('o');
+if (isOfferSide) {
+	offer();
 } else {
-	btnShare.addEventListener('click', share);
+	const offer = JSON.parse(searchParams.get('o'));
+	answer(offer);
 }
 
-function share() {
-	// channelData = pc.createDataChannel('channelData');
-	// channelData.onopen = e => console.log('open');
-	// channelData.onmessage = e => console.log(e.data);
-	// channelData.onclose = e => console.log('closed');
 
-	// pc.onicecandidate = e => console.log(pc.localDescription);
 
-	pc.createOffer().then(offer => {
-		pc.setLocalDescription(offer);
-		console.log(
-			window.location.origin +
-				window.location.pathname +
-				'?o=' +
-				encodeURIComponent(JSON.stringify(offer))
-		);
-	});
+function offer() {
+	pc.createOffer()
+		.then(offer => pc.setLocalDescription(offer))
 
-	btnStart.addEventListener('click', function () {
-		pc.setRemoteDescription(JSON.parse(eleCode.value)).then(a =>
-			console.log('done')
-		);
+	// send the offer to the other peer via the signaling
+
+	// completeConnection
+}
+
+function answer(offer) {
+	pc.setRemoteDescription(offer)
+		.then(() => pc.createAnswer())
+		.then(answer => pc.setLocalDescription(answer))
+
+	//send the answer to the other peer via the signaling
+}
+
+function completeConnection(answer) {
+	pc.setRemoteDescription(answer).then(e => {
+		console.log('done');
 	});
 }
